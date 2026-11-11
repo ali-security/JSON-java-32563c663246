@@ -74,6 +74,40 @@ public class Util {
     }
 
     /**
+     * Runs the given task on a dedicated thread with a large (8 MB) stack and
+     * returns whatever it threw. The test suite may be run with a small stack
+     * (for example -Xss512k), which does not leave enough room to reach the
+     * default maximum nesting depth of the XML and JSONML parsers; running such
+     * tests on their own thread keeps the outcome independent of the stack size
+     * the suite was started with.
+     * @param task the work to run
+     * @return the Throwable thrown by <code>task</code>, or <code>null</code>
+     *      if it completed normally
+     */
+    public static Throwable throwableFromLargeStack(final Runnable task) {
+        final Throwable[] thrown = new Throwable[1];
+        Thread thread = new Thread(null, new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    task.run();
+                } catch (Throwable t) {
+                    thrown[0] = t;
+                }
+            }
+        }, "large-stack-test", 8L * 1024L * 1024L);
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Interrupted while waiting for the large-stack test thread", e);
+        }
+        return thrown[0];
+    }
+
+    /**
      * Compare two objects for equality. Might be JSONArray, JSONObject,
      * or something else.
      * @param value created by the code to be tested
